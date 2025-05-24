@@ -8,11 +8,6 @@ use Illuminate\Support\Facades\Auth;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register()
-    {
-        //
-    }
-
     public function boot()
     {
         Inertia::share([
