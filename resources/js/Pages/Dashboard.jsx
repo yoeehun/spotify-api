@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 
 export default function Dashboard() {
     return (
@@ -17,6 +17,13 @@ export default function Dashboard() {
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
                             You're logged in!
+
+                            <Link
+                                href="/spotify/redirect"
+                                className="mt-4 inline-block rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                            >
+                                Connect Spotify
+                            </Link>
                         </div>
                     </div>
                 </div>
