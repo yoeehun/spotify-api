@@ -9,14 +9,14 @@ use App\Models\SpotifyToken;
 
 class SpotifyController extends Controller
 {
-    // Redirect to Spotify for auth
+    // Redirect to Spotify for auth (Free or Premium)
     public function redirectToSpotify()
     {
         $query = http_build_query([
             'client_id' => config('services.spotify.client_id'),
             'response_type' => 'code',
             'redirect_uri' => config('services.spotify.redirect'),
-            'scope' => 'user-read-playback-state user-modify-playback-state user-read-currently-playing',
+            'scope' => 'user-read-email user-read-private', // Minimal scopes
         ]);
 
         return redirect("https://accounts.spotify.com/authorize?$query");
@@ -78,7 +78,7 @@ class SpotifyController extends Controller
         return false;
     }
 
-    // Make authorized Spotify request
+    // Generic Spotify API request
     private function spotifyRequest($method, $endpoint, $body = [])
     {
         $user = Auth::user();
@@ -109,14 +109,67 @@ class SpotifyController extends Controller
         return response()->json($response->json());
     }
 
-    public function play()  { return $this->spotifyRequest('put', 'me/player/play'); }
-    public function pause() { return $this->spotifyRequest('put', 'me/player/pause'); }
-    public function next()  { return $this->spotifyRequest('post', 'me/player/next'); }
+    // Get logged-in user's Spotify profile
+    public function profile()
+    {
+        return $this->spotifyRequest('get', 'me');
+    }
 
+    // Check if user is Premium before allowing playback
+    private function isPremium()
+    {
+        $profileResponse = $this->spotifyRequest('get', 'me');
+
+        $data = $profileResponse->getData(true);
+        return isset($data['product']) && $data['product'] === 'premium';
+    }
+
+    // Playback controls (Premium only)
+    public function play()
+    {
+        if (!$this->isPremium()) {
+            return response()->json(['error' => 'Spotify Premium required for playback.'], 403);
+        }
+        return $this->spotifyRequest('put', 'me/player/play');
+    }
+
+    public function pause()
+    {
+        if (!$this->isPremium()) {
+            return response()->json(['error' => 'Spotify Premium required for playback.'], 403);
+        }
+        return $this->spotifyRequest('put', 'me/player/pause');
+    }
+
+    public function next()
+    {
+        if (!$this->isPremium()) {
+            return response()->json(['error' => 'Spotify Premium required for playback.'], 403);
+        }
+        return $this->spotifyRequest('post', 'me/player/next');
+    }
+
+    // Search for tracks and return preview URLs
     public function search(Request $request)
     {
         $query = $request->query('query');
         $type = $request->query('type', 'track');
-        return $this->spotifyRequest('get', "search?q=" . urlencode($query) . "&type=" . $type);
+
+        $response = $this->spotifyRequest('get', "search?q=" . urlencode($query) . "&type=" . $type);
+
+        $data = $response->getData(true);
+
+        $items = $data[$type . 's']['items'] ?? [];
+
+        $results = collect($items)->map(function ($item) {
+            return [
+                'name' => $item['name'],
+                'artist' => $item['artists'][0]['name'] ?? '',
+                'preview_url' => $item['preview_url'],
+                'external_url' => $item['external_urls']['spotify'] ?? '',
+            ];
+        });
+
+        return response()->json($results);
     }
 }
